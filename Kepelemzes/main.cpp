@@ -7,8 +7,12 @@
 #include <fstream>
 #include <string>
 #include <sstream>
+#include <cstdlib>     /* srand, rand */
+#include <ctime>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+
 using namespace std;
 
 typedef std::pair<double, double> Geotag;
@@ -50,6 +54,7 @@ std::set<User> Users;
 std::map<User, std::vector<Post>> UserPosts;
 std::map<Geotag, Post> LocToPost;
 std::set<Geotag> Locations;
+std::set<std::string> psi;
 
 //Algorithm 2
 //Input: keyword set psi
@@ -81,7 +86,7 @@ void computeSupports(const std::set<Geotag> & L, const std::set<std::string>& ps
 
 		for (auto p : UserPosts[u])
 			for (auto l : L)
-				if (dist(p.loc, l) < 0.2) {
+				if (dist(p.loc, l) < 0.05) {
 					std::set<std::string> intersect;
 					std::set_intersection(psi.begin(), psi.end(), p.keywords.begin(), p.keywords.end(), std::inserter(intersect, intersect.begin()));
 					for (auto& ps : intersect) {
@@ -138,41 +143,98 @@ void combinationUtil(const std::set<std::set<Geotag>>& Fi, int r, int index, Geo
 	combinationUtil(Fi, r, index + 1, data, ++it);
 	combinationUtil(Fi, r, index, data, it);
 }
-
+std::map<std::string, cv::Vec3b> colors;
 cv::Vec3b getColor(const std::string& s) {
-	return cv::Vec3b(0, 0, 0);
+	//return cv::Vec3b(255, 255, 255);
+	if (s == "Folyo")
+		return cv::Vec3b(225, 0, 20);
+	if (s == "Epulet1")
+		return cv::Vec3b(225, 0, 255);
+	if (s == "Epulet2")
+		return cv::Vec3b(225, 255, 0);
+	return cv::Vec3b(255, 255, 255);
 }
-const int D = 500;
-void markObject(cv::Mat& Pic, const std::set<Geotag> L)
+const int D = 1000;
+void markObject(cv::Mat& Pic, const Geotag& gt)
 {
-	Pic.at<cv::Vec3b>(D*(L.begin()->first), D*(L.begin()->second)) = getColor(*(LocToPost.at(*(L.begin())).keywords.begin()));
-	Pic.at<cv::Vec3b>(D*(L.begin()->first) + 1, D*(L.begin()->second)) = getColor(*(LocToPost.at(*(L.begin())).keywords.begin()));
-	Pic.at<cv::Vec3b>(D*(L.begin()->first), D*(L.begin()->second) + 1) = getColor(*(LocToPost.at(*(L.begin())).keywords.begin()));
-	Pic.at<cv::Vec3b>(D*(L.begin()->first) - 1, D*(L.begin()->second)) = getColor(*(LocToPost.at(*(L.begin())).keywords.begin()));
-	Pic.at<cv::Vec3b>(D*(L.begin()->first), D*(L.begin()->second) - 1) = getColor(*(LocToPost.at(*(L.begin())).keywords.begin()));
-	Pic.at<cv::Vec3b>(D*(L.begin()->first) + 1, D*(L.begin()->second) + 1) = getColor(*(LocToPost.at(*(L.begin())).keywords.begin()));
-	Pic.at<cv::Vec3b>(D*(L.begin()->first) - 1, D*(L.begin()->second) - 1) = getColor(*(LocToPost.at(*(L.begin())).keywords.begin()));
-	Pic.at<cv::Vec3b>(D*(L.begin()->first) + 1, D*(L.begin()->second) - 1) = getColor(*(LocToPost.at(*(L.begin())).keywords.begin()));
-	Pic.at<cv::Vec3b>(D*(L.begin()->first) - 1, D*(L.begin()->second) + 1) = getColor(*(LocToPost.at(*(L.begin())).keywords.begin()));
+	cv::circle(Pic, cv::Point(D*(gt.first), D*(gt.second)), 4, cv::Scalar(0,0,0),2);
+	cv::circle(Pic, cv::Point(D*(gt.first), D*(gt.second)), 3, cv::Scalar(getColor(*(LocToPost.at(gt).keywords.begin()))),-1);
 }
 
-int main()
-{
+void generateData() {
+	ofstream ofs("data.txt");
+	int N = 1500;
+	int usernum = 200;
+	srand(time(nullptr));
+	ofs << N << std::endl;
+	for (int i = 0; i < N; i++) {
+		int tosz = rand() % 4;
+		if (tosz == 0) {
+			//ofs << rand()%12 << ' ' << 0.8+0.01*((rand()%200) - 100) << ' ' << 0.5 + 0.01*((rand() % 200) - 100) <<" Epulet1\n";
+			double alpha2, d;
+			do {
+				int alpha = rand() % 360;
+				alpha2 = alpha * 2 * 3.14159 / 360;
+				d = pow(0.015*((rand() % 200) - 100), 3);
+			} while (!(d > 0.005 && 0.8 + sin(alpha2)*d < 1 && 0.8 + sin(alpha2)*d > 0 && 0.5 + cos(alpha2)*d < 1 && 0.5 + cos(alpha2)*d > 0));
+			
+			ofs << rand() % 12 << ' ' << 0.8 + sin(alpha2)*d << ' ' << 0.5 + cos(alpha2)*d << " Epulet1\n";
+		}//Building 1
+		else if (tosz == 1) {
+			double alpha2, d;
+			do {
+				int alpha = rand() % 360;
+				alpha2 = alpha * 2 * 3.14159 / 360;
+				d = pow(0.015*((rand() % 200) - 100), 3);
+			} while (!(0.4 + sin(alpha2)*d < 1 && 0.4 + sin(alpha2)*d > 0 && 0.8 + cos(alpha2)*d < 1 && 0.8 + cos(alpha2)*d > 0));
+			ofs << rand() % 12 << ' ' << 0.4 + sin(alpha2)*d  << ' ' << 0.8 + cos(alpha2)*d << " Epulet2\n";
+		}
+		else{
+			double alpha2, d, p1, p2;
+			do {
+				int alpha = rand() % 360;
+				alpha2 = alpha * 2 * 3.14159 / 360;
+				d = pow(0.03*((rand() % 200) - 100), 3);
+				p1 = (((rand() % 10000) + 10000) % 10000) / 10000.0;
+				p2 = 2*p1 - 2.0 / 5.0;
+			} while (!(d > 0.009 && d < 0.8 &&p2 + sin(alpha2)*d < 1 && p2 + sin(alpha2)*d > 0 && p1 + cos(alpha2)*d < 1 && p1 + cos(alpha2)*d > 0));
+			
+			
+			ofs << rand() % 12 << ' ' << p2 + sin(alpha2)*d << ' ' << p1 + cos(alpha2)*d << " Folyo\n";
+		}
+	}
+	ofs.close();
+}
 
-	cv::Mat Pic = cv::Mat_<cv::Vec3b>(D, D);
-
-
-	for (int i = 0; i < 500; i++)
-		for (int j = 0; j < 500; j++)
+void initObjects(cv::Mat& Pic) {
+	
+	//FOLYO
+	for (int i = 0; i < D; i++)
+		for (int j = 0; j < D; j++)
 		{
-			if(abs((-i + 2*j-200)) < 70)
+			if (abs((-i + 2 * j - D*2.0 / 5.0)) < D / 5.0 * 0.7)
 				Pic.at<cv::Vec3b>(j, i) = cv::Vec3b(225, 0, 20);
 			else
 				Pic.at<cv::Vec3b>(j, i) = cv::Vec3b(10, 125, 70);
 		}
+	cv::circle(Pic, cv::Point(D*0.8, D*0.5), 20, cv::Scalar(255, 0, 255), -1);
+	cv::circle(Pic, cv::Point(D*0.4, D*0.8), 20, cv::Scalar(255, 255, 0), -1);
+}
 
+int main()
+{
+	//Inputs;
+
+	psi.insert("Epulet1");
+	psi.insert("Folyo");
+	int m = 1;
+	int sig = 10;
+
+
+	cv::Mat Pic = cv::Mat_<cv::Vec3b>(D, D);
 	//cv::imshow("Grad", Pic);
 	//cv::waitKey(0);
+	generateData();
 	int N;
 	ifstream ifs("data.txt");
 	ifs >> N;
@@ -196,16 +258,10 @@ int main()
 			s.insert(tmpString2);
 		}
 		UserPosts[uid].push_back(Post(tmpGT, uid, s));
-		LocToPost.insert(std::make_pair(std::make_pair(tmplon, tmplat),Post(tmpGT, uid, s)));
+		if(!LocToPost.count(std::make_pair(tmplon, tmplat)) || psi.count(*s.begin()))
+			LocToPost.insert(std::make_pair(std::make_pair(tmplon, tmplat),Post(tmpGT, uid, s)));
 	}
-
-	//Inputs;
-	std::set<std::string> psi;
-	psi.insert("Epulet1");
-	psi.insert("Folyo");
-	int m = 7;
-	int sig = 3;
-
+	initObjects(Pic);
 
 	//Algorithm STA (Algorithm 1)
 	std::set<std::set<Geotag>> Rsig;
@@ -216,33 +272,43 @@ int main()
 		auto temp = std::set<Geotag>();
 		temp.insert(L);
 		C[0].insert(temp);
+		markObject(Pic, L);
 	}
+	cv::imshow("Grad", Pic);
+	cv::waitKey(0);
+	initObjects(Pic);
 
 	std::vector<std::set<std::set<Geotag>>> F;
 	F.resize(m);
 
 	Upsi = identifyRelevantUsers(psi);
-
+	int maxsup = 0;
+	std::set<Geotag> maxLoc;
 	for (int i = 0; i < m; ++i) {
 		for (auto L : C[i]) {
 			//std::cout << L;
 			computeSupports(L, psi);
 			if (rw_sup[L] >= sig) {
-				if (i == 1) {
-					markObject(Pic, L);
-					
+				for(auto& l : L) {
+					if(psi.count(*(LocToPost.at(l).keywords.begin())))
+						markObject(Pic, l);
 				}
 				F[i].insert(L);
 				if (sup[L] >= sig)
 					Rsig.insert(L);
+				if (sup[L] >= maxsup && L.size() == 1) { maxsup = sup[L]; maxLoc = L; }
 			}
 		}
 		//std::cout << "i: "<<i <<" F: " << F[i];
-		candidateGeneration(F[i], i + 2);
+		if(i != m-1)
+			candidateGeneration(F[i], i + 2);
 	}
 
 	std::cout << "Rsig size: " << Rsig.size() << std::endl;
-	std::cout << Rsig << std::endl;
+	//std::cout << Rsig << std::endl;
+	std::cout << maxLoc << std::endl;
+	cv::circle(Pic, cv::Point(D*maxLoc.begin()->first, D*maxLoc.begin()->second), 8, cv::Scalar(0, 200, 240), -1);
+	cv::circle(Pic, cv::Point(D*maxLoc.begin()->first, D*maxLoc.begin()->second), 9, cv::Scalar(0, 0, 0), 2);
 
 	//std::cout << *(Rsig.begin()->begin());
 	cv::imshow("Grad", Pic);
